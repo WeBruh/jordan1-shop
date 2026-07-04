@@ -1,14 +1,33 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth, googleProvider } from "../firebase";
-import { signInWithPopup } from "firebase/auth";
+import { signInWithGoogle } from "../firebase";
 import "../app.css";
+
+import hero1 from "../assets/hero/hero-1.jpg";
+import hero2 from "../assets/hero/hero-2.jpg";
+import hero3 from "../assets/hero/hero-3.jpg";
+import hero4 from "../assets/hero/hero-4.jpg";
+import hero5 from "../assets/hero/hero-5.jpg";
+import hero6 from "../assets/hero/hero-6.jpg";
+import hero7 from "../assets/hero/hero-7.jpg";
+
+// Slides 2 & 3 swapped per request, plus 2 new slides added at the end
+const HERO_IMAGES = [hero1, hero3, hero2, hero4, hero5, hero6, hero7];
 
 export default function Home({ user }) {
   const navigate = useNavigate();
+  const [slideIndex, setSlideIndex] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setSlideIndex((i) => (i + 1) % HERO_IMAGES.length);
+    }, 3500);
+    return () => clearInterval(id);
+  }, []);
 
   const login = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      await signInWithGoogle();
     } catch (err) {
       console.error(err);
     }
@@ -26,15 +45,12 @@ export default function Home({ user }) {
         justifyContent: "center",
         overflow: "hidden",
       }}>
-        {/* Background image */}
-        <div style={{
-          position: "absolute",
-          inset: 0,
-          backgroundImage: "url('/hero.jpg')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          filter: "brightness(0.4)",
-        }} />
+        {/* Background slideshow */}
+        <div
+          key={slideIndex}
+          className="hero-slide"
+          style={{ backgroundImage: `url(${HERO_IMAGES[slideIndex]})` }}
+        />
 
         {/* Red glow */}
         <div style={{
@@ -44,7 +60,7 @@ export default function Home({ user }) {
           transform: "translateX(-50%)",
           width: "60%",
           height: "40%",
-          background: "radial-gradient(ellipse, rgba(230,51,41,0.3) 0%, transparent 70%)",
+          background: "radial-gradient(ellipse, var(--red-glow) 0%, transparent 70%)",
           pointerEvents: "none",
         }} />
 
@@ -57,15 +73,18 @@ export default function Home({ user }) {
         }}>
           {/* Logo */}
           <img
-            src="/hero.jpg"
+            src="/new-logo.jpg"
             alt="logo"
             style={{
-              width: 200,
-              height: 200,
-              objectFit: "contain",
+              width: 70,
+              height: 70,
+              aspectRatio: "1 / 1",
+              objectFit: "cover",
+              objectPosition: "center",
               marginBottom: 24,
-              filter: "drop-shadow(0 0 20px rgba(230,51,41,0.6))",
+              filter: "drop-shadow(0 0 20px var(--red-glow))",
               borderRadius: "50%",
+              hover: "transform: scale(5.05); transition: transform 0.3s ease;",
             }}
           />
 
@@ -73,7 +92,7 @@ export default function Home({ user }) {
             fontSize: 13,
             fontWeight: 600,
             letterSpacing: "4px",
-            color: "#e63329",
+            color: "var(--red)",
             marginBottom: 16,
             textTransform: "uppercase",
           }}>
@@ -89,8 +108,8 @@ export default function Home({ user }) {
           }}>
             JORDAN <br />
             <span style={{
-              color: "#e63329",
-              textShadow: "0 0 40px rgba(230,51,41,0.5)",
+              color: "var(--red)",
+              textShadow: "0 0 40px var(--red-glow)",
             }}>
               LEGACY
             </span>
@@ -190,8 +209,8 @@ export default function Home({ user }) {
               transition: "all 0.3s ease",
             }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "#e63329";
-                e.currentTarget.style.boxShadow = "0 8px 30px rgba(230,51,41,0.2)";
+                e.currentTarget.style.borderColor = "var(--red)";
+                e.currentTarget.style.boxShadow = "0 8px 30px var(--red-glow)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = "var(--border)";
@@ -213,7 +232,7 @@ export default function Home({ user }) {
             fontSize: 12,
             fontWeight: 600,
             letterSpacing: "4px",
-            color: "#e63329",
+            color: "var(--red)",
             marginBottom: 12,
             textTransform: "uppercase",
           }}>
@@ -250,9 +269,9 @@ export default function Home({ user }) {
                 transition: "all 0.3s ease",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "#e63329";
+                e.currentTarget.style.borderColor = "var(--red)";
                 e.currentTarget.style.transform = "translateY(-4px)";
-                e.currentTarget.style.boxShadow = "0 8px 30px rgba(230,51,41,0.2)";
+                e.currentTarget.style.boxShadow = "0 8px 30px var(--red-glow)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = "var(--border)";

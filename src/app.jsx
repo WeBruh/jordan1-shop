@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { auth, db } from "./firebase";
+import { auth, db, getRedirectResult } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import Navbar from "./components/Navbar";
@@ -15,6 +15,14 @@ function App() {
   const [cart, setCart] = useState([]);
 
   useEffect(() => {
+    // Surfaces any error from the mobile signInWithRedirect flow
+    // (onAuthStateChanged below still fires with the signed-in user on success).
+    getRedirectResult(auth).catch((err) => {
+      if (err?.code !== "auth/no-auth-event") {
+        console.error("Google redirect sign-in failed:", err);
+      }
+    });
+
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       // Save/update a record for every user who logs in, real-time visible in Admin

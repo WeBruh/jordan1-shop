@@ -134,7 +134,7 @@ export default function Shop({ user, addToCart }) {
 
   return (
     <div style={{ paddingTop: 90, minHeight: "100vh" }}>
-      <div style={{ padding: "40px 60px 0", maxWidth: 1400, margin: "0 auto" }}>
+      <div className="page-pad" style={{ padding: "40px 0 0", maxWidth: 1400, margin: "0 auto" }}>
         <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "4px", color: "#e63329", marginBottom: 8, textTransform: "uppercase" }}>
           Our Collection
         </div>
@@ -146,7 +146,7 @@ export default function Shop({ user, addToCart }) {
         </p>
       </div>
 
-      <div style={{ padding: "32px 60px", maxWidth: 1400, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+      <div className="page-pad" style={{ padding: "32px 0", maxWidth: 1400, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
           <input
             placeholder="Search by name or colorway..."
@@ -182,7 +182,7 @@ export default function Shop({ user, addToCart }) {
         </div>
       </div>
 
-      <div style={{ padding: "0 60px 80px", maxWidth: 1400, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 24 }}>
+      <div className="page-pad" style={{ padding: "0 0 80px", maxWidth: 1400, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 24 }}>
         {filtered.length === 0 ? (
           <div style={{ gridColumn: "1/-1", textAlign: "center", padding: 80, color: "rgba(255,255,255,0.3)", fontSize: 18 }}>
             No shoes found 👟

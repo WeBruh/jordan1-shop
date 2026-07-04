@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { db } from "../firebase";
-import { collection, query, orderBy, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from "firebase/firestore";
 
 const ADMIN_EMAIL = "genorgaadriangabriel@gmail.com"; // change to your Google account email
 
@@ -53,13 +53,48 @@ export default function Admin({ user }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [toast, setToast] = useState(null);
   const [viewingOrder, setViewingOrder] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const isFirstOrderLoad = useRef(true);
 
-  // Real-time orders feed
+  // Ask permission once for real desktop notifications (works even if tab isn't focused)
+  useEffect(() => {
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Real-time orders feed + purchase notifications
   useEffect(() => {
     if (!user || user.email !== ADMIN_EMAIL) return;
     const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(q, (snap) => {
       setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+
+      // Skip notifying for the initial batch of pre-existing orders on first load
+      if (isFirstOrderLoad.current) {
+        isFirstOrderLoad.current = false;
+        return;
+      }
+
+      snap.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const o = { id: change.doc.id, ...change.doc.data() };
+          const itemLabel = o.items?.length
+            ? `${o.items[0].name}${o.items.length > 1 ? ` +${o.items.length - 1} more` : ""}`
+            : "a shoe";
+          showToast(`🛒 New order from ${o.userName}! $${(o.total || 0).toFixed(2)}`);
+          setNotifications((prev) => [
+            { id: o.id, text: `${o.userName} purchased ${itemLabel}`, amount: o.total || 0, time: new Date() },
+            ...prev,
+          ]);
+          if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+            new Notification("New Order! 🛒", {
+              body: `${o.userName} just placed an order — $${(o.total || 0).toFixed(2)}`,
+            });
+          }
+        }
+      });
     });
     return () => unsub();
   }, [user]);
@@ -74,10 +109,27 @@ export default function Admin({ user }) {
     return () => unsub();
   }, [user]);
 
-  const updateOrderStatus = async (orderId, status) => {
+  const updateOrderStatus = async (order, status) => {
     try {
-      await updateDoc(doc(db, "orders", orderId), { status });
+      await updateDoc(doc(db, "orders", order.id), { status });
       showToast(`Order marked ${status}.`);
+
+      // Notify the customer when their order is delivered or cancelled
+      if (status === "Delivered" || status === "Cancelled") {
+        const itemLabel = order.items?.length
+          ? `${order.items[0].name}${order.items.length > 1 ? ` +${order.items.length - 1} more` : ""}`
+          : "your shoe";
+        await addDoc(collection(db, "notifications"), {
+          userId: order.userId,
+          orderId: order.id,
+          status,
+          message: status === "Delivered"
+            ? `Your order (${itemLabel}) has been delivered! 🎉`
+            : `Your order (${itemLabel}) was cancelled.`,
+          read: false,
+          createdAt: serverTimestamp(),
+        });
+      }
     } catch (err) {
       console.error(err);
       showToast("Failed to update order status.", "error");
@@ -94,7 +146,7 @@ export default function Admin({ user }) {
       }}>
         <div style={{ fontSize: 64 }}>🔒</div>
         <h2 style={{ fontSize: 24, fontWeight: 900 }}>Access Denied</h2>
-        <p style={{ color: "rgba(255,255,255,0.5)" }}>Please sign in to access the admin panel.</p>
+        <p style={{ color: "var(--text-muted)" }}>Please sign in to access the admin panel.</p>
         <button className="btn-red" onClick={() => navigate("/")} style={{ padding: "12px 32px" }}>
           Go Home
         </button>
@@ -111,7 +163,7 @@ export default function Admin({ user }) {
       }}>
         <div style={{ fontSize: 64 }}>⛔</div>
         <h2 style={{ fontSize: 24, fontWeight: 900 }}>Admins Only</h2>
-        <p style={{ color: "rgba(255,255,255,0.5)" }}>You don't have permission to view this page.</p>
+        <p style={{ color: "var(--text-muted)" }}>You don't have permission to view this page.</p>
         <button className="btn-red" onClick={() => navigate("/")} style={{ padding: "12px 32px" }}>
           Go Home
         </button>
@@ -179,8 +231,8 @@ export default function Admin({ user }) {
   const lowStock = products.filter((p) => p.stock <= 3).length;
 
   const inputStyle = {
-    background: "#0d0f12",
-    border: "1px solid rgba(255,255,255,0.08)",
+    background: "var(--bg2)",
+    border: "1px solid var(--border)",
     borderRadius: 10,
     padding: "10px 14px",
     color: "white",
@@ -210,18 +262,82 @@ export default function Admin({ user }) {
 
         {/* Header */}
         <div style={{ marginBottom: 40 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "4px", color: "#e63329", marginBottom: 8, textTransform: "uppercase" }}>
+          <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "4px", color: "var(--red)", marginBottom: 8, textTransform: "uppercase" }}>
             Admin Panel
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <h1 style={{ fontSize: "clamp(28px, 5vw, 48px)", fontWeight: 900, letterSpacing: "-1px" }}>
               Dashboard
             </h1>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <img src={user.photoURL} alt="avatar" style={{ width: 36, height: 36, borderRadius: "50%", border: "2px solid #e63329" }} />
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>{user.displayName}</div>
-                <div style={{ fontSize: 11, color: "#e63329" }}>Administrator</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+
+              {/* Notification bell */}
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => setShowNotifDropdown((v) => !v)}
+                  style={{
+                    background: "var(--surface)", border: "1px solid var(--border)",
+                    borderRadius: "50%", width: 44, height: 44, cursor: "pointer",
+                    fontSize: 18, position: "relative",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  🔔
+                  {notifications.length > 0 && (
+                    <span style={{
+                      position: "absolute", top: -2, right: -2,
+                      background: "var(--red)", color: "white",
+                      borderRadius: "50%", minWidth: 18, height: 18,
+                      fontSize: 10, fontWeight: 700,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      padding: "0 4px",
+                    }}>
+                      {notifications.length > 9 ? "9+" : notifications.length}
+                    </span>
+                  )}
+                </button>
+
+                {showNotifDropdown && (
+                  <>
+                    <div onClick={() => setShowNotifDropdown(false)} style={{ position: "fixed", inset: 0, zIndex: 1050 }} />
+                    <div className="dropdown-menu" style={{ width: 320, maxHeight: 360, overflowY: "auto" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px 10px", borderBottom: "1px solid var(--border)", marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700 }}>Notifications</span>
+                        {notifications.length > 0 && (
+                          <button
+                            onClick={() => setNotifications([])}
+                            style={{ background: "none", border: "none", color: "var(--red)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                          >
+                            Clear all
+                          </button>
+                        )}
+                      </div>
+                      {notifications.length === 0 ? (
+                        <div style={{ padding: "20px 10px", fontSize: 12, color: "var(--text-muted)", textAlign: "center" }}>
+                          No new notifications
+                        </div>
+                      ) : (
+                        notifications.map((n) => (
+                          <div key={n.id + n.time} style={{ padding: "10px 10px", borderRadius: 10 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600 }}>{n.text}</div>
+                            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                              ${n.amount.toFixed(2)} · {n.time.toLocaleTimeString()}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Profile (static, no dropdown per request) */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <img src={user.photoURL} alt="avatar" style={{ width: 36, height: 36, borderRadius: "50%", border: "2px solid var(--red)" }} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{user.displayName}</div>
+                  <div style={{ fontSize: 11, color: "var(--red)" }}>Administrator</div>
+                </div>
               </div>
             </div>
           </div>
@@ -237,24 +353,24 @@ export default function Admin({ user }) {
           {[
             { label: "Total Revenue", value: `$${totalRevenue.toFixed(2)}`, icon: "💰", color: "#4ade80" },
             { label: "Total Orders", value: totalOrders, icon: "📦", color: "#60a5fa" },
-            { label: "Total Products", value: totalProducts, icon: "👟", color: "#e63329" },
+            { label: "Total Products", value: totalProducts, icon: "👟", color: "var(--red)" },
             { label: "Low Stock", value: lowStock, icon: "⚠️", color: "#fbbf24" },
           ].map((s) => (
             <div key={s.label} style={{
-              background: "#111318",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
               borderRadius: 16,
               padding: 24,
             }}>
               <div style={{ fontSize: 28, marginBottom: 12 }}>{s.icon}</div>
               <div style={{ fontSize: 28, fontWeight: 900, color: s.color, marginBottom: 4 }}>{s.value}</div>
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px" }}>{s.label}</div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "1px" }}>{s.label}</div>
             </div>
           ))}
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 4, marginBottom: 32, background: "#111318", borderRadius: 12, padding: 4, width: "fit-content" }}>
+        <div style={{ display: "flex", gap: 4, marginBottom: 32, background: "var(--surface)", borderRadius: 12, padding: 4, width: "fit-content" }}>
           {["products", "orders", "customers"].map((t) => (
             <button
               key={t}
@@ -263,8 +379,8 @@ export default function Admin({ user }) {
                 padding: "10px 24px",
                 borderRadius: 10,
                 border: "none",
-                background: tab === t ? "#e63329" : "transparent",
-                color: tab === t ? "white" : "rgba(255,255,255,0.5)",
+                background: tab === t ? "var(--red)" : "transparent",
+                color: tab === t ? "white" : "var(--text-muted)",
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: "pointer",
@@ -288,8 +404,8 @@ export default function Admin({ user }) {
             </div>
 
             <div style={{
-              background: "#111318",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
               borderRadius: 16,
               overflow: "hidden",
             }}>
@@ -298,10 +414,10 @@ export default function Admin({ user }) {
                 display: "grid",
                 gridTemplateColumns: "60px 1fr 1fr 80px 80px 80px 100px",
                 padding: "14px 20px",
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                borderBottom: "1px solid var(--border)",
                 fontSize: 11,
                 fontWeight: 700,
-                color: "rgba(255,255,255,0.3)",
+                color: "var(--text-muted)",
                 textTransform: "uppercase",
                 letterSpacing: "1px",
               }}>
@@ -331,9 +447,9 @@ export default function Admin({ user }) {
                   <img src={p.image} alt={p.name} style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{p.name}</div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>{p.colorway}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{p.colorway}</div>
                   </div>
-                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{p.model}</div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{p.model}</div>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>${p.price}</div>
                   <div style={{
                     fontSize: 13, fontWeight: 700,
@@ -346,7 +462,7 @@ export default function Admin({ user }) {
                       <span style={{
                         fontSize: 10, fontWeight: 700,
                         background: "rgba(230,51,41,0.15)",
-                        color: "#e63329",
+                        color: "var(--red)",
                         border: "1px solid rgba(230,51,41,0.3)",
                         borderRadius: 99,
                         padding: "3px 8px",
@@ -361,12 +477,12 @@ export default function Admin({ user }) {
                     <button
                       onClick={() => openEdit(p)}
                       style={{
-                        padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)",
+                        padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)",
                         background: "transparent", color: "rgba(255,255,255,0.6)", fontSize: 12,
                         cursor: "pointer", transition: "all 0.2s",
                       }}
                       onMouseEnter={(e) => { e.currentTarget.style.borderColor = "white"; e.currentTarget.style.color = "white"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
                     >
                       Edit
                     </button>
@@ -374,7 +490,7 @@ export default function Admin({ user }) {
                       onClick={() => setDeleteConfirm(p.id)}
                       style={{
                         padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(230,51,41,0.2)",
-                        background: "transparent", color: "#e63329", fontSize: 12,
+                        background: "transparent", color: "var(--red)", fontSize: 12,
                         cursor: "pointer", transition: "all 0.2s",
                       }}
                       onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(230,51,41,0.1)"; }}
@@ -400,13 +516,13 @@ export default function Admin({ user }) {
             </div>
 
             {orders.length === 0 ? (
-              <div style={{ background: "#111318", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 60, textAlign: "center", color: "rgba(255,255,255,0.4)" }}>
+              <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, padding: 60, textAlign: "center", color: "var(--text-muted)" }}>
                 No orders yet. They'll appear here in real time as customers check out.
               </div>
             ) : (
               <div style={{
-                background: "#111318",
-                border: "1px solid rgba(255,255,255,0.08)",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
                 borderRadius: 16,
                 overflow: "hidden",
               }}>
@@ -414,9 +530,9 @@ export default function Admin({ user }) {
                   display: "grid",
                   gridTemplateColumns: "1fr 1fr 1fr 1fr 100px 120px",
                   padding: "14px 20px",
-                  borderBottom: "1px solid rgba(255,255,255,0.06)",
+                  borderBottom: "1px solid var(--border)",
                   fontSize: 11, fontWeight: 700,
-                  color: "rgba(255,255,255,0.3)",
+                  color: "var(--text-muted)",
                   textTransform: "uppercase", letterSpacing: "1px",
                 }}>
                   <span>Customer</span>
@@ -449,14 +565,14 @@ export default function Admin({ user }) {
                         {o.userPhoto && <img src={o.userPhoto} alt="" style={{ width: 28, height: 28, borderRadius: "50%" }} />}
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600 }}>{o.userName}</div>
-                          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>{o.userEmail}</div>
+                          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{o.userEmail}</div>
                         </div>
                       </div>
-                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
                         {o.items?.map((it) => it.name).join(", ")}
                       </div>
-                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{o.paymentMethod}</div>
-                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>{formatDate(o.createdAt)}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{o.paymentMethod}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{formatDate(o.createdAt)}</div>
                       <div style={{ fontSize: 14, fontWeight: 800 }}>${(o.total || 0).toFixed(2)}</div>
                       <span style={{
                         fontSize: 11, fontWeight: 700,
@@ -487,13 +603,13 @@ export default function Admin({ user }) {
             </div>
 
             {customers.length === 0 ? (
-              <div style={{ background: "#111318", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 60, textAlign: "center", color: "rgba(255,255,255,0.4)" }}>
+              <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, padding: 60, textAlign: "center", color: "var(--text-muted)" }}>
                 No one has signed in yet.
               </div>
             ) : (
               <div style={{
-                background: "#111318",
-                border: "1px solid rgba(255,255,255,0.08)",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
                 borderRadius: 16,
                 overflow: "hidden",
               }}>
@@ -501,9 +617,9 @@ export default function Admin({ user }) {
                   display: "grid",
                   gridTemplateColumns: "1fr 1fr 1fr 100px",
                   padding: "14px 20px",
-                  borderBottom: "1px solid rgba(255,255,255,0.06)",
+                  borderBottom: "1px solid var(--border)",
                   fontSize: 11, fontWeight: 700,
-                  color: "rgba(255,255,255,0.3)",
+                  color: "var(--text-muted)",
                   textTransform: "uppercase", letterSpacing: "1px",
                 }}>
                   <span>Customer</span>
@@ -531,8 +647,8 @@ export default function Admin({ user }) {
                         {c.photo && <img src={c.photo} alt="" style={{ width: 32, height: 32, borderRadius: "50%" }} />}
                         <div style={{ fontSize: 13, fontWeight: 600 }}>{c.name || "—"}</div>
                       </div>
-                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{c.email}</div>
-                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>{formatDate(c.lastLogin)}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.email}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{formatDate(c.lastLogin)}</div>
                       <div style={{ fontSize: 13, fontWeight: 700 }}>{orderCount}</div>
                     </div>
                   );
@@ -555,8 +671,8 @@ export default function Admin({ user }) {
           onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}
         >
           <div style={{
-            background: "#111318",
-            border: "1px solid rgba(255,255,255,0.1)",
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
             borderRadius: 20,
             padding: 36,
             width: "100%",
@@ -571,7 +687,7 @@ export default function Admin({ user }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {/* Model */}
               <div>
-                <label style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Model *</label>
+                <label style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Model *</label>
                 <select value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} style={{ ...inputStyle, cursor: "pointer" }}>
                   {MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
                 </select>
@@ -579,24 +695,24 @@ export default function Admin({ user }) {
 
               {/* Name */}
               <div>
-                <label style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Name *</label>
+                <label style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Name *</label>
                 <input style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. AJ1 Chicago" />
               </div>
 
               {/* Colorway */}
               <div>
-                <label style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Colorway *</label>
+                <label style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Colorway *</label>
                 <input style={inputStyle} value={form.colorway} onChange={(e) => setForm({ ...form, colorway: e.target.value })} placeholder="e.g. White/Black-Varsity Red" />
               </div>
 
               {/* Price row */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <div>
-                  <label style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Price ($) *</label>
+                  <label style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Price ($) *</label>
                   <input style={inputStyle} type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="180" />
                 </div>
                 <div>
-                  <label style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Original Price ($)</label>
+                  <label style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Original Price ($)</label>
                   <input style={inputStyle} type="number" value={form.originalPrice} onChange={(e) => setForm({ ...form, originalPrice: e.target.value })} placeholder="220" />
                 </div>
               </div>
@@ -604,11 +720,11 @@ export default function Admin({ user }) {
               {/* Stock + Badge */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <div>
-                  <label style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Stock</label>
+                  <label style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Stock</label>
                   <input style={inputStyle} type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} placeholder="10" />
                 </div>
                 <div>
-                  <label style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Badge</label>
+                  <label style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Badge</label>
                   <select value={form.badge} onChange={(e) => setForm({ ...form, badge: e.target.value })} style={{ ...inputStyle, cursor: "pointer" }}>
                     {BADGES.map((b) => <option key={b} value={b}>{b || "None"}</option>)}
                   </select>
@@ -617,10 +733,10 @@ export default function Admin({ user }) {
 
               {/* Image URL */}
               <div>
-                <label style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Image URL</label>
+                <label style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Image URL</label>
                 <input style={inputStyle} value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder="https://..." />
                 {form.image && (
-                  <img src={form.image} alt="preview" style={{ marginTop: 10, width: "100%", height: 140, objectFit: "cover", borderRadius: 10, border: "1px solid rgba(255,255,255,0.08)" }} />
+                  <img src={form.image} alt="preview" style={{ marginTop: 10, width: "100%", height: 140, objectFit: "cover", borderRadius: 10, border: "1px solid var(--border)" }} />
                 )}
               </div>
             </div>
@@ -647,13 +763,13 @@ export default function Admin({ user }) {
           display: "flex", alignItems: "center", justifyContent: "center",
         }}>
           <div style={{
-            background: "#111318",
+            background: "var(--surface)",
             border: "1px solid rgba(230,51,41,0.3)",
             borderRadius: 20, padding: 36, maxWidth: 400, width: "90%", textAlign: "center",
           }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>🗑️</div>
             <h3 style={{ fontSize: 20, fontWeight: 900, marginBottom: 10 }}>Delete Product?</h3>
-            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 14, marginBottom: 28 }}>
+            <p style={{ color: "var(--text-muted)", fontSize: 14, marginBottom: 28 }}>
               This action cannot be undone.
             </p>
             <div style={{ display: "flex", gap: 12 }}>
@@ -681,8 +797,8 @@ export default function Admin({ user }) {
           onClick={(e) => { if (e.target === e.currentTarget) setViewingOrder(null); }}
         >
           <div style={{
-            background: "#111318",
-            border: "1px solid rgba(255,255,255,0.1)",
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
             borderRadius: 20,
             padding: 36,
             width: "100%",
@@ -693,12 +809,12 @@ export default function Admin({ user }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
               <div>
                 <h3 style={{ fontSize: 20, fontWeight: 900, marginBottom: 6 }}>Order Details</h3>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>{formatDate(viewingOrder.createdAt)}</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{formatDate(viewingOrder.createdAt)}</div>
               </div>
               <select
                 value={viewingOrder.status}
                 onChange={(e) => {
-                  updateOrderStatus(viewingOrder.id, e.target.value);
+                  updateOrderStatus(viewingOrder, e.target.value);
                   setViewingOrder({ ...viewingOrder, status: e.target.value });
                 }}
                 style={{
@@ -714,11 +830,11 @@ export default function Admin({ user }) {
             </div>
 
             {/* Customer */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24, padding: 16, background: "#0d0f12", borderRadius: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24, padding: 16, background: "var(--bg2)", borderRadius: 12 }}>
               {viewingOrder.userPhoto && <img src={viewingOrder.userPhoto} alt="" style={{ width: 44, height: 44, borderRadius: "50%" }} />}
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{viewingOrder.userName}</div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>{viewingOrder.userEmail}</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{viewingOrder.userEmail}</div>
               </div>
             </div>
 
@@ -743,11 +859,11 @@ export default function Admin({ user }) {
             <div style={labelStyleAdmin}>Items ({viewingOrder.items?.length || 0})</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
               {viewingOrder.items?.map((it, idx) => (
-                <div key={idx} style={{ display: "flex", alignItems: "center", gap: 14, background: "#0d0f12", borderRadius: 12, padding: 12 }}>
+                <div key={idx} style={{ display: "flex", alignItems: "center", gap: 14, background: "var(--bg2)", borderRadius: 12, padding: 12 }}>
                   <img src={it.image} alt={it.name} style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8 }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>{it.name}</div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{it.model} · Size US {it.size} · Qty {it.qty}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{it.model} · Size US {it.size} · Qty {it.qty}</div>
                   </div>
                   <div style={{ fontSize: 14, fontWeight: 800 }}>${(it.price * it.qty).toFixed(2)}</div>
                 </div>
@@ -755,18 +871,18 @@ export default function Admin({ user }) {
             </div>
 
             {/* Totals */}
-            <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>
+            <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--text-muted)" }}>
                 <span>Subtotal</span><span>${(viewingOrder.subtotal || 0).toFixed(2)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--text-muted)" }}>
                 <span>Tax</span><span>${(viewingOrder.tax || 0).toFixed(2)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--text-muted)" }}>
                 <span>Shipping</span><span>{viewingOrder.shipping ? `$${viewingOrder.shipping.toFixed(2)}` : "FREE"}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 900 }}>
-                <span>Total</span><span style={{ color: "#e63329" }}>${(viewingOrder.total || 0).toFixed(2)}</span>
+                <span>Total</span><span style={{ color: "var(--red)" }}>${(viewingOrder.total || 0).toFixed(2)}</span>
               </div>
             </div>
 
@@ -785,6 +901,6 @@ export default function Admin({ user }) {
 }
 
 const labelStyleAdmin = {
-  fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase",
+  fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase",
   letterSpacing: "1px", marginBottom: 8, fontWeight: 700,
 };

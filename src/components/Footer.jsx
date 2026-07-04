@@ -4,10 +4,9 @@ export default function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer style={{
+    <footer className="footer" style={{
       background: "#0a0b0e",
       borderTop: "1px solid rgba(255,255,255,0.06)",
-      padding: "64px 60px 32px",
       marginTop: "auto",
     }}>
       <div style={{
@@ -16,10 +15,7 @@ export default function Footer() {
       }}>
 
         {/* Top row */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "2fr 1fr 1fr 1fr",
-          gap: 48,
+        <div className="footer-grid" style={{
           marginBottom: 56,
         }}>
 

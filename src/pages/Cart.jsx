@@ -106,7 +106,7 @@ export default function Cart({ cart, removeFromCart, setCart, user }) {
       }}>
         <div style={{ fontSize: 80 }}>👟</div>
         <h2 style={{ fontSize: 28, fontWeight: 900 }}>Your cart is empty</h2>
-        <p style={{ color: "rgba(255,255,255,0.5)" }}>
+        <p style={{ color: "var(--text-muted)" }}>
           Add some Jordans to get started!
         </p>
         <button
@@ -122,8 +122,8 @@ export default function Cart({ cart, removeFromCart, setCart, user }) {
 
   return (
     <div style={{ paddingTop: 90, minHeight: "100vh" }}>
-      <div style={{
-        padding: "40px 60px 80px",
+      <div className="page-pad" style={{
+        padding: "40px 0 80px",
         maxWidth: 1200,
         margin: "0 auto",
       }}>
@@ -134,7 +134,7 @@ export default function Cart({ cart, removeFromCart, setCart, user }) {
             fontSize: 12,
             fontWeight: 600,
             letterSpacing: "4px",
-            color: "#e63329",
+            color: "var(--red)",
             marginBottom: 8,
             textTransform: "uppercase",
           }}>
@@ -149,35 +149,27 @@ export default function Cart({ cart, removeFromCart, setCart, user }) {
           </h1>
         </div>
 
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 360px",
-          gap: 32,
-          alignItems: "start",
-        }}>
+        <div className="cart-layout">
 
           {/* Cart Items */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {cart.map((item) => (
               <div
                 key={`${item.id}-${item.size}`}
+                className="cart-item-row"
                 style={{
-                  background: "#111318",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
                   borderRadius: 16,
                   padding: 20,
-                  display: "flex",
-                  gap: 20,
-                  alignItems: "center",
                 }}
               >
                 {/* Image */}
                 <img
                   src={item.image}
                   alt={item.name}
+                  className="cart-item-img"
                   style={{
-                    width: 100,
-                    height: 100,
                     objectFit: "cover",
                     borderRadius: 12,
                     flexShrink: 0,
@@ -188,7 +180,7 @@ export default function Cart({ cart, removeFromCart, setCart, user }) {
                 <div style={{ flex: 1 }}>
                   <div style={{
                     fontSize: 11,
-                    color: "#e63329",
+                    color: "var(--red)",
                     fontWeight: 600,
                     letterSpacing: "2px",
                     textTransform: "uppercase",
@@ -199,7 +191,7 @@ export default function Cart({ cart, removeFromCart, setCart, user }) {
                   <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>
                     {item.name}
                   </div>
-                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>
+                  <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 8 }}>
                     Size: US {item.size}
                   </div>
 
@@ -211,7 +203,7 @@ export default function Cart({ cart, removeFromCart, setCart, user }) {
                         width: 30,
                         height: 30,
                         borderRadius: "50%",
-                        border: "1px solid rgba(255,255,255,0.15)",
+                        border: "1px solid var(--border)",
                         background: "transparent",
                         color: "white",
                         fontSize: 16,
@@ -232,7 +224,7 @@ export default function Cart({ cart, removeFromCart, setCart, user }) {
                         width: 30,
                         height: 30,
                         borderRadius: "50%",
-                        border: "1px solid rgba(255,255,255,0.15)",
+                        border: "1px solid var(--border)",
                         background: "transparent",
                         color: "white",
                         fontSize: 16,
@@ -261,8 +253,8 @@ export default function Cart({ cart, removeFromCart, setCart, user }) {
                     onClick={() => removeFromCart(item.id, item.size)}
                     style={{
                       background: "transparent",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      color: "rgba(255,255,255,0.4)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text-muted)",
                       borderRadius: 8,
                       padding: "6px 12px",
                       fontSize: 12,
@@ -270,12 +262,12 @@ export default function Cart({ cart, removeFromCart, setCart, user }) {
                       transition: "all 0.2s",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "#e63329";
-                      e.currentTarget.style.color = "#e63329";
+                      e.currentTarget.style.borderColor = "var(--red)";
+                      e.currentTarget.style.color = "var(--red)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
-                      e.currentTarget.style.color = "rgba(255,255,255,0.4)";
+                      e.currentTarget.style.borderColor = "var(--border)";
+                      e.currentTarget.style.color = "var(--text-muted)";
                     }}
                   >
                     Remove
@@ -286,9 +278,9 @@ export default function Cart({ cart, removeFromCart, setCart, user }) {
           </div>
 
           {/* Order Summary */}
-          <div style={{
-            background: "#111318",
-            border: "1px solid rgba(255,255,255,0.08)",
+          <div className="cart-summary" style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
             borderRadius: 16,
             padding: 28,
             position: "sticky",
@@ -299,30 +291,30 @@ export default function Cart({ cart, removeFromCart, setCart, user }) {
             </h3>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 24 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "rgba(255,255,255,0.6)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "var(--text-muted)" }}>
                 <span>Subtotal ({itemCount} items)</span>
                 <span>${total.toFixed(2)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "rgba(255,255,255,0.6)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "var(--text-muted)" }}>
                 <span>Shipping</span>
                 <span style={{ color: "#4ade80" }}>
                   {total >= 200 ? "FREE" : "$15.00"}
                 </span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "rgba(255,255,255,0.6)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "var(--text-muted)" }}>
                 <span>Tax (8%)</span>
                 <span>${(total * 0.08).toFixed(2)}</span>
               </div>
 
               <div style={{
                 height: 1,
-                background: "rgba(255,255,255,0.08)",
+                background: "var(--border)",
                 margin: "4px 0",
               }} />
 
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 800 }}>
                 <span>Total</span>
-                <span style={{ color: "#e63329" }}>
+                <span style={{ color: "var(--red)" }}>
                   ${(total * 1.08 + (total >= 200 ? 0 : 15)).toFixed(2)}
                 </span>
               </div>
@@ -375,8 +367,8 @@ export default function Cart({ cart, removeFromCart, setCart, user }) {
           onClick={(e) => { if (e.target === e.currentTarget && !placing) setShowCheckout(false); }}
         >
           <div style={{
-            background: "#111318",
-            border: "1px solid rgba(255,255,255,0.1)",
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
             borderRadius: 20,
             padding: 36,
             width: "100%",
@@ -385,8 +377,8 @@ export default function Cart({ cart, removeFromCart, setCart, user }) {
             overflowY: "auto",
           }}>
             <h3 style={{ fontSize: 20, fontWeight: 900, marginBottom: 6 }}>Shipping & Payment</h3>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 24 }}>
-              Total: <strong style={{ color: "#e63329" }}>${grandTotal.toFixed(2)}</strong>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 24 }}>
+              Total: <strong style={{ color: "var(--red)" }}>${grandTotal.toFixed(2)}</strong>
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -449,13 +441,13 @@ export default function Cart({ cart, removeFromCart, setCart, user }) {
 }
 
 const labelStyle = {
-  fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase",
+  fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase",
   letterSpacing: "1px", display: "block", marginBottom: 6,
 };
 
 const inputStyle = {
-  background: "#0d0f12",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "var(--bg2)",
+  border: "1px solid var(--border)",
   borderRadius: 10,
   padding: "10px 14px",
   color: "white",
